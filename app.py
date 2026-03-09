@@ -76,14 +76,14 @@ def render_chat_interface(groq_api_key: str):
     st.subheader("💬 Chat with Your Data (Powered by Groq)")
     
     if not groq_api_key:
-        st.warning("⚠️ Please enter your Groq API Key in the sidebar to use the chat feature")
+        st.warning("⚠️ Groq API Key not configured")
         st.info("""
         **How to get Groq API Key:**
         1. Visit https://console.groq.com
         2. Sign up for free account
         3. Go to API Keys section
         4. Create new API key
-        5. Copy and paste it in the sidebar
+        5. Add it as an environment variable `GROQ_API_KEY`
         
         **Groq is FREE and MUCH FASTER than OpenAI!** ⚡
         """)
@@ -500,31 +500,11 @@ def main():
     
     st.title("🤖 AI Web Scraper Pro + RAG Data Analyzer")
     st.markdown("**Professional web scraping + AI-powered data chat with Groq**")
+
+    groq_api_key = os.getenv("GROQ_API_KEY", "")
+    openai_api_key = os.getenv("OPENAI_API_KEY", "")
     
     with st.sidebar:
-        st.header("⚙️ API Configuration")
-        
-        st.markdown("### 🔑 Groq API (Required for Chat)")
-        groq_api_key = st.text_input(
-            "Groq API Key",
-            type="password",
-            value=os.getenv("GROQ_API_KEY", ""),
-            help="Get free API key from console.groq.com"
-        )
-        
-        if groq_api_key:
-            st.success("✅ Groq API connected")
-        else:
-            st.info("💡 Get free Groq key: console.groq.com")
-        
-        st.markdown("### 🔑 OpenAI API (Optional)")
-        openai_api_key = st.text_input(
-            "OpenAI API Key",
-            type="password",
-            value=os.getenv("OPENAI_API_KEY", ""),
-            help="For AI structure analysis and embeddings"
-        )
-        
         st.markdown("---")
         st.subheader("🛠️ Scraping Engine")
         
