@@ -1,0 +1,45 @@
+name: Deploy to Streamlit Cloud
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Test imports
+      run: |
+        python -c "import streamlit; print('Streamlit OK')"
+        python -c "from scraper import *; print('Scraper OK')"
+        python -c "from rag_analyzer import *; print('RAG OK')"
+        
+    - name: Trigger Streamlit Cloud redeploy
+      env:
+        STREAMLIT_API_TOKEN: ${{ secrets.STREAMLIT_API_TOKEN }}
+      run: |
+        echo "✅ Code pushed to GitHub"
+        echo "🚀 Streamlit Cloud will auto-deploy from GitHub"
+        echo "📊 Check your app at: https://share.streamlit.io"
+        
+    - name: Deployment notification
+      run: |
+        echo "🎉 Deployment triggered!"
+        echo "Your app will be available at:"
+        echo "https://share.streamlit.io/${{ github.repository_owner }}/${{ github.event.repository.name }}/main/app.py"
