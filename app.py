@@ -435,15 +435,6 @@ def main():
     st.markdown("**Professional web scraping + Intelligent data analysis with AI**")
     
     with st.sidebar:
-        st.header("⚙️ Configuration")
-        
-        api_key = st.text_input(
-            "Groq API Key",
-            type="password",
-            value=os.getenv("GROQ_API_KEY", ""),
-            help="Required for AI-powered structure analysis via Groq"
-        )
-        
         st.markdown("---")
         st.subheader("🛠️ Scraping Engine")
         
