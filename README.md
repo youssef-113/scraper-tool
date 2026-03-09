@@ -21,6 +21,31 @@ A powerful, production-ready web scraping application that uses AI and advanced 
   - Data quality scoring
 - **Professional Export**: CSV with metadata and timestamps
 - **Error Recovery**: Automatic retry with different strategies
+- **📊 RAG Data Analyzer**: NEW! Upload CSV/Excel and chat with your data using AI
+
+## 📊 NEW: RAG Data Analyzer
+
+### Features
+- **Upload CSV/Excel files**: Analyze any tabular data
+- **AI-Powered Chat**: Ask questions about your data in natural language
+- **Product Analysis**: Automatic product data extraction and insights
+- **Statistical Analysis**: Comprehensive statistical breakdowns
+- **Data Explorer**: Interactive filtering and exploration
+- **Smart Search**: Vector-based semantic search through your data
+
+### Use Cases
+- Analyze scraped product data
+- Extract insights from Excel reports
+- Chat with sales data
+- Explore customer databases
+- Product catalog analysis
+
+### Example Questions You Can Ask:
+- "What is the average price of products?"
+- "Show me the top 10 most expensive items"
+- "How many products are in each category?"
+- "What's the price range for electronics?"
+- "Which brand has the highest average rating?"
 
 ## 🛠️ Tech Stack
 
