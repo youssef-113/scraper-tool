@@ -431,8 +431,9 @@ def render_rag_analyzer_tab(api_key: str):
 def main():
     init_session_state()
     
-    st.title("🤖 AI-Powered Universal Web Scraper PRO + RAG Data Analyzer")
-    st.markdown("**Professional web scraping + Intelligent data analysis with AI**")
+    st.title("🤖 AI-Powered Universal Web Scraper PRO and RAG Data Analyzer")
+    st.markdown("**Professional web scraping and Intelligent data analysis with AI**")
+    st.markdown("**Scrap the website and talk with your data from scraping**")
     
     with st.sidebar:
         st.markdown("---")
