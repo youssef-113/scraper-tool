@@ -541,10 +541,6 @@ def main():
     
     # Web Scraper Mode
     st.markdown("---")
-    
-    if not api_key:
-        st.warning("⚠️ Please enter your Groq API Key in the sidebar")
-    
     col1, col2 = st.columns([1.2, 1])
     
     with col1:
