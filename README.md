@@ -208,10 +208,6 @@ python -m playwright install-deps
 - Check API key validity
 - Verify internet connection
 
-### Need Help?
-- GitHub Issues: [Your Repo]
-- Email: support@aiscraperpro.com
-- Documentation: docs.aiscraperpro.com
 
 ## 📝 License
 
