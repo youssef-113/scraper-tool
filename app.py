@@ -431,6 +431,9 @@ def render_rag_analyzer_tab(api_key: str):
 def main():
     init_session_state()
     
+    # Load API key from environment (not shown in UI)
+    api_key = os.getenv("GROQ_API_KEY", "")
+    
     st.title("🤖 AI-Powered Universal Web Scraper PRO and RAG Data Analyzer")
     st.markdown("**Professional web scraping and Intelligent data analysis with AI**")
     st.markdown("**Scrap the website and talk with your data from scraping**")
