@@ -1,22 +1,16 @@
-# 🤖 AI Web Scraper Pro + Gemini Live Agent
+# 🕷️ AI Web Scraper Pro
 
-**Live Multimodal Web Intelligence powered by Gemini 2.0 Flash**
+**Professional web scraping + AI-powered data analysis**
 
-[![Deploy to Google Cloud](https://img.shields.io/badge/Deploy-Google%20Cloud-4285F4?logo=google-cloud)](https://cloud.google.com)
-[![Gemini 2.0](https://img.shields.io/badge/Gemini-2.0%20Flash-8E75B2?logo=google)](https://ai.google.dev)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> A revolutionary web scraping platform combining live voice interaction, visual understanding, and AI-powered data analysis.
+> A powerful web scraping platform with AI chat capabilities for data analysis.
+
+**Author:** Youssef Bassiony | **Role:** AI Engineer
 
 ---
 
 ## ✨ Features
-
-### 🤖 Gemini Live Agent (NEW!)
-- 🎤 **Voice-First Interface** - Natural language scraping instructions
-- 👁️ **Visual Understanding** - Screenshot analysis with Gemini Vision
-- 💬 **Live Conversation** - True interruption capabilities with context awareness
-- ⚡ **Real-time Interaction** - Dynamic strategy adjustment mid-scraping
 
 ### 📊 RAG Data Analyzer
 - Upload CSV/Excel files and chat with your data
@@ -30,11 +24,10 @@
 - Automatic CSS selector generation
 - Data cleaning and deduplication
 
-### ☁️ Google Cloud Ready
-- Deployed on Cloud Run
-- Vertex AI integration
-- Secret Manager for security
-- Auto-scaling infrastructure
+### 🔬 Power Analysis
+- Advanced page structure analysis
+- Tag and class detection
+- Pattern recognition
 
 ---
 
@@ -42,8 +35,7 @@
 
 ### Prerequisites
 - Python 3.11+
-- Google API key ([Get one here](https://aistudio.google.com))
-- Groq API key ([Get one here](https://console.groq.com)) - FREE
+- Groq API key ([Get one FREE here](https://console.groq.com))
 
 ### Local Development
 
@@ -61,41 +53,19 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your Groq API key
 
 # Run application
 streamlit run app.py
 ```
 
-### Deploy to Google Cloud
-
-```bash
-# One-command deployment
-cd gcp
-chmod +x setup_gcp.sh deploy.sh
-./setup_gcp.sh  # First time only
-./deploy.sh     # Deploy to Cloud Run
-```
-
 ---
 
-## 🔑 API Keys Setup
+## 🔑 API Key Setup
 
-### Google API Key (Required for Gemini Live Agent)
-1. Visit: https://aistudio.google.com
-2. Sign up for free account
-3. Go to API Keys section
-4. Create new API key
-5. Add to `.env` as `GOOGLE_API_KEY`
-
-**Features:**
-- Gemini 2.0 Flash (multimodal)
-- Voice + Vision + Text understanding
-- FREE tier available
-
-### Groq API Key (Required for RAG Chat)
+### Groq API Key (Required - FREE)
 1. Visit: https://console.groq.com
-2. Sign up (free account)
+2. Sign up for free account
 3. Navigate to "API Keys"
 4. Click "Create API Key"
 5. Add to `.env` as `GROQ_API_KEY`
@@ -104,11 +74,6 @@ chmod +x setup_gcp.sh deploy.sh
 - 30 requests/minute
 - Unlimited tokens/day
 - All Llama 3 models available
-
-### OpenAI API Key (Optional - For Embeddings)
-1. Visit: https://platform.openai.com
-2. Create new secret key
-3. Add to `.env` as `OPENAI_API_KEY`
 
 ---
 
@@ -237,11 +202,6 @@ python -m playwright install chromium
 python -m playwright install-deps
 ```
 
-### Gemini API errors
-- Check API key is correct
-- Verify Gemini 2.0 Flash is enabled
-- Check quota limits
-
 ### Groq API errors
 - Check API key is correct
 - Verify you're within rate limits (30/min)
@@ -256,8 +216,8 @@ python -m playwright install-deps
 echo ".env" >> .gitignore
 ```
 
-2. **Use Secret Manager in production**
-3. **Rotate API keys monthly**
+2. **Rotate API keys monthly**
+3. **Use environment variables in production**
 4. **Enable HTTPS for production**
 5. **Implement rate limiting**
 
@@ -271,31 +231,11 @@ echo ".env" >> .gitignore
 3. Add secrets in dashboard
 4. Deploy!
 
-### Google Cloud Run (Production)
-```bash
-cd gcp && ./deploy.sh
-```
-
 ### Docker (Anywhere)
 ```bash
-docker build -t gemini-scraper-agent .
-docker run -p 8080:8080 -e GOOGLE_API_KEY=your_key gemini-scraper-agent
+docker build -t ai-web-scraper .
+docker run -p 8501:8501 -e GROQ_API_KEY=your_key ai-web-scraper
 ```
-
----
-
-## 🏆 Gemini Live Agent Challenge
-
-This project was built for the **Gemini Live Agent Challenge**.
-
-**Requirements Met:**
-- ✅ Leverages Gemini 2.0 Flash
-- ✅ Built with Google GenAI SDK
-- ✅ Deployed on Google Cloud (Cloud Run + Vertex AI)
-- ✅ True live agent with interruption
-- ✅ Multimodal (voice + vision + text)
-
-**Category:** Live Agents
 
 ---
 
@@ -307,20 +247,10 @@ MIT License - Use freely for commercial projects!
 
 ## 📬 Contact
 
+- **Author:** Youssef Bassiony
+- **Role:** AI Engineer
 - **Issues:** [GitHub Issues](https://github.com/yourusername/scraper-tool/issues)
-- **Twitter:** [@yourhandle]
-- **Email:** your@email.com
-
----
-
-## 🙏 Acknowledgments
-
-- Google for Gemini 2.0 Flash
-- Groq for fast Llama 3 inference
-- The open-source scraping community
 
 ---
 
 **⭐ If you find this helpful, give it a star on GitHub!**
-
-#GeminiLiveAgentChallenge #GoogleCloud #AI
