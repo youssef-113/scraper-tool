@@ -1,0 +1,67 @@
+# Cloud Build configuration for Gemini Scraper Agent
+# Builds and deploys to Google Cloud Run
+
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/gemini-scraper-agent:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/gemini-scraper-agent:latest'
+      - '.'
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/gemini-scraper-agent:$COMMIT_SHA'
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/gemini-scraper-agent:latest'
+  
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'gemini-scraper-agent'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/gemini-scraper-agent:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '300'
+      - '--set-env-vars'
+      - 'GOOGLE_API_KEY=${_GOOGLE_API_KEY},GROQ_API_KEY=${_GROQ_API_KEY}'
+      - '--set-secrets'
+      - 'GOOGLE_API_KEY=google-api-key:latest,GROQ_API_KEY=groq-api-key:latest'
+
+# Store images in Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/gemini-scraper-agent:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/gemini-scraper-agent:latest'
+
+# Build options
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+# Build timeout
+timeout: '1200s'
+
+# Substitution variables (set these in Cloud Build trigger or pass via command line)
+substitutions:
+  _GOOGLE_API_KEY: ''
+  _GROQ_API_KEY: ''

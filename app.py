@@ -1,3 +1,10 @@
+"""
+AI Web Scraper Pro - Combined Application
+Features:
+- Existing: Web Scraper, Power Analysis, RAG Data Analyzer with Groq
+- NEW: Gemini Live Agent for multimodal voice-interactive scraping
+"""
+
 import streamlit as st
 import pandas as pd
 import os
@@ -6,7 +13,10 @@ from datetime import datetime
 import time
 from io import BytesIO
 import json
+import asyncio
+import base64
 
+# Existing imports
 from scraper import (
     ScrapingEngine,
     fetch_page_multi_engine,
@@ -26,7 +36,6 @@ from utils import (
     sanitize_filename,
     extract_domain
 )
-
 from rag_analyzer import (
     DocumentProcessor,
     VectorStoreManager,
@@ -34,17 +43,20 @@ from rag_analyzer import (
     ProductExtractor
 )
 
+# NEW: Gemini Agent imports
+from agent import GeminiScraperAgent, MultimodalHandler, ScraperTools, ConversationManager
+
 load_dotenv()
 
 st.set_page_config(
-    page_title="AI Web Scraper Pro + RAG Analyzer",
+    page_title="AI Web Scraper Pro + Gemini Live Agent",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 def init_session_state():
-    # Scraper session state
+    # Existing session states
     if 'scraping_results' not in st.session_state:
         st.session_state.scraping_results = None
     if 'kpis' not in st.session_state:
@@ -69,6 +81,300 @@ def init_session_state():
         st.session_state.data_summary = None
     if 'current_model' not in st.session_state:
         st.session_state.current_model = "llama-3.3-70b-versatile"
+    
+    # NEW: Gemini Agent session state
+    if 'gemini_agent' not in st.session_state:
+        st.session_state.gemini_agent = None
+    if 'gemini_session_active' not in st.session_state:
+        st.session_state.gemini_session_active = False
+    if 'conversation_manager' not in st.session_state:
+        st.session_state.conversation_manager = ConversationManager()
+    if 'scraper_tools' not in st.session_state:
+        st.session_state.scraper_tools = ScraperTools()
+    if 'multimodal_handler' not in st.session_state:
+        st.session_state.multimodal_handler = MultimodalHandler()
+    if 'gemini_chat_history' not in st.session_state:
+        st.session_state.gemini_chat_history = []
+
+# ============================================================================
+# GEMINI LIVE AGENT FUNCTIONS
+# ============================================================================
+
+def init_gemini_agent():
+    """Initialize Gemini agent"""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+    return GeminiScraperAgent(api_key=api_key)
+
+def render_gemini_agent_tab():
+    """Render the Gemini Live Agent interface"""
+    st.header("🤖 Gemini Live Agent")
+    st.markdown("**First live voice agent for web scraping - Multimodal: Voice → Visual → Data**")
+    
+    # Check API key
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+    
+    if not google_api_key:
+        st.warning("⚠️ Google API Key not configured")
+        st.info("""
+        **How to get Google API Key:**
+        1. Visit https://aistudio.google.com
+        2. Sign up for free account
+        3. Go to API Keys section
+        4. Create new API key
+        5. Add it as environment variable `GOOGLE_API_KEY`
+        
+        **Gemini 2.0 Flash supports multimodal + live interactions!** ⚡
+        """)
+        return
+    
+    # Session controls
+    col1, col2, col3 = st.columns([2, 2, 1])
+    
+    with col1:
+        if not st.session_state.gemini_session_active:
+            if st.button("🟢 Start Live Session", type="primary"):
+                with st.spinner("Starting Gemini Live..."):
+                    st.session_state.gemini_agent = init_gemini_agent()
+                    if st.session_state.gemini_agent:
+                        success = st.session_state.gemini_agent.start_session()
+                        st.session_state.gemini_session_active = success
+                        if success:
+                            st.success("✅ Live session active!")
+                            st.rerun()
+        else:
+            st.success("🟢 Live session active")
+    
+    with col2:
+        if st.session_state.gemini_session_active:
+            if st.button("🔴 End Session"):
+                if st.session_state.gemini_agent:
+                    farewell = st.session_state.gemini_agent.close_session()
+                    st.info(f"👋 {farewell}")
+                st.session_state.gemini_session_active = False
+                st.rerun()
+    
+    with col3:
+        if st.session_state.gemini_session_active:
+            st.metric("Messages", len(st.session_state.gemini_chat_history))
+    
+    if not st.session_state.gemini_session_active:
+        st.markdown("---")
+        st.markdown("### 📖 Quick Start Guide")
+        st.markdown("""
+        **How to Use Gemini Scraper Agent:**
+        
+        1. **Start Live Session** (button above)
+        2. **Enter URL** to scrape
+        3. **Type or use voice** for instructions
+        4. **Interrupt anytime** to adjust strategy
+        5. **Get results** in real-time
+        
+        **Voice Commands Examples:**
+        - "Extract all product names"
+        - "Show me the prices"
+        - "Wait, change strategy"
+        - "How many items found?"
+        
+        **Multimodal Capabilities:**
+        - 📸 Screenshot analysis
+        - 🎙️ Voice interaction
+        - 👁️ Visual structure detection
+        """)
+        return
+    
+    # Active session interface
+    st.markdown("---")
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["🎯 Interactive Scrape", "💬 Chat", "👁️ Visual Analysis", "📊 Results"])
+    
+    with tab1:
+        st.subheader("Interactive Scraping")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            url = st.text_input(
+                "🌐 Target URL",
+                placeholder="https://example.com/products"
+            )
+        
+        with col2:
+            scrape_mode = st.selectbox(
+                "Mode",
+                ["⌨️ Text", "🎙️ Voice", "👁️ Visual"]
+            )
+        
+        # Instructions based on mode
+        if scrape_mode == "⌨️ Text":
+            instructions = st.text_area(
+                "Instructions for Agent",
+                placeholder="Extract product names, prices, and ratings...",
+                height=100
+            )
+        elif scrape_mode == "🎙️ Voice":
+            st.info("🎤 Voice mode: Click 'Start Scraping' then speak your instructions")
+            instructions = "Use voice input"
+        else:
+            st.info("📸 Visual mode: Agent will analyze webpage screenshots")
+            instructions = st.text_input("What should I look for?")
+        
+        # Scraping controls
+        col_start, col_interrupt = st.columns([1, 1])
+        
+        with col_start:
+            if st.button("🚀 Start Scraping", type="primary", disabled=not url):
+                with st.spinner("🤖 Agent is working..."):
+                    result = st.session_state.gemini_agent.interactive_scraping(
+                        url=url,
+                        user_instructions=instructions or "Extract all visible data",
+                        progress_callback=lambda msg: st.info(msg)
+                    )
+                    st.success(f"✅ {result['agent_response']}")
+                    st.session_state.gemini_chat_history.append({
+                        'role': 'agent',
+                        'content': result['agent_response'],
+                        'timestamp': datetime.now().strftime("%H:%M:%S")
+                    })
+        
+        with col_interrupt:
+            interrupt_msg = st.text_input(
+                "Send interruption",
+                placeholder="Wait! Also extract the descriptions..."
+            )
+            if st.button("📨 Send Interruption") and interrupt_msg:
+                response = st.session_state.gemini_agent.handle_interruption(interrupt_msg)
+                st.info(f"🤖 Agent: {response}")
+                st.session_state.gemini_chat_history.append({
+                    'role': 'user',
+                    'content': interrupt_msg,
+                    'timestamp': datetime.now().strftime("%H:%M:%S")
+                })
+                st.session_state.gemini_chat_history.append({
+                    'role': 'agent',
+                    'content': response,
+                    'timestamp': datetime.now().strftime("%H:%M:%S")
+                })
+    
+    with tab2:
+        st.subheader("💬 Chat with Agent")
+        
+        # Chat history display
+        if st.session_state.gemini_chat_history:
+            chat_container = st.container()
+            with chat_container:
+                for chat in st.session_state.gemini_chat_history[-10:]:
+                    role_icon = "🤖" if chat['role'] == 'agent' else "🙋"
+                    with st.chat_message("assistant" if chat['role'] == 'agent' else "user"):
+                        st.markdown(f"**{role_icon}** ({chat['timestamp']}): {chat['content']}")
+        
+        # Chat input
+        user_message = st.chat_input("Ask the agent anything...")
+        
+        if user_message:
+            with st.chat_message("user"):
+                st.write(user_message)
+            
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    response = st.session_state.gemini_agent.chat(user_message)
+                    st.write(response)
+            
+            st.session_state.gemini_chat_history.append({
+                'role': 'user',
+                'content': user_message,
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+            st.session_state.gemini_chat_history.append({
+                'role': 'agent',
+                'content': response,
+                'timestamp': datetime.now().strftime("%H:%M:%S")
+            })
+            st.rerun()
+    
+    with tab3:
+        st.subheader("👁️ Visual Analysis")
+        
+        # Screenshot upload
+        uploaded_image = st.file_uploader(
+            "📸 Upload webpage screenshot",
+            type=['png', 'jpg', 'jpeg'],
+            help="Upload a screenshot for visual analysis"
+        )
+        
+        question = st.text_input(
+            "What do you want to know about this page?",
+            placeholder="What data can be extracted?"
+        )
+        
+        if uploaded_image and question:
+            if st.button("🔍 Analyze Screenshot", type="primary"):
+                with st.spinner("Analyzing..."):
+                    image_data = uploaded_image.read()
+                    
+                    # Analyze with Gemini
+                    result = st.session_state.gemini_agent.analyze_screenshot(
+                        image_data, question
+                    )
+                    
+                    if 'error' in result:
+                        st.error(f"Error: {result['error']}")
+                    else:
+                        st.success("✅ Analysis complete!")
+                        
+                        # Display results
+                        if 'structure' in result:
+                            st.markdown("#### 🏗️ Structure")
+                            st.json(result['structure'])
+                        
+                        if 'patterns' in result:
+                            st.markdown("#### 📊 Patterns")
+                            st.json(result['patterns'])
+                        
+                        if 'selectors' in result:
+                            st.markdown("#### 🎯 Suggested Selectors")
+                            st.json(result['selectors'])
+                        
+                        if 'strategy' in result:
+                            st.markdown("#### 📋 Strategy")
+                            st.write(result['strategy'])
+                        
+                        if 'analysis' in result:
+                            st.markdown("#### 📝 Analysis")
+                            st.write(result['analysis'])
+    
+    with tab4:
+        st.subheader("📊 Scraping Results")
+        
+        if st.session_state.scraping_results is not None:
+            df = st.session_state.scraping_results
+            
+            # AI Summary
+            if st.button("🤖 Get AI Summary"):
+                with st.spinner("Generating summary..."):
+                    summary = st.session_state.gemini_agent.generate_summary(
+                        df.to_dict('records')
+                    )
+                    st.info(summary)
+            
+            # Data display
+            st.dataframe(df, use_container_width=True)
+            
+            # Download
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Download CSV",
+                data=csv,
+                file_name=f"scraped_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No data scraped yet. Start a scraping session!")
+
+# ============================================================================
+# EXISTING RAG CHAT INTERFACE
+# ============================================================================
 
 def render_chat_interface(groq_api_key: str):
     """Render the enhanced chat interface with Groq"""
@@ -83,7 +389,7 @@ def render_chat_interface(groq_api_key: str):
         2. Sign up for free account
         3. Go to API Keys section
         4. Create new API key
-        5. Add it as an environment variable `GROQ_API_KEY`
+        5. Add it as environment variable `GROQ_API_KEY`
         
         **Groq is FREE and MUCH FASTER than OpenAI!** ⚡
         """)
@@ -154,10 +460,10 @@ def render_chat_interface(groq_api_key: str):
     col_ask, col_clear, col_export = st.columns([2, 1, 1])
     
     with col_ask:
-        ask_button = st.button("🔍 Ask Question", type="primary", width='stretch')
+        ask_button = st.button("🔍 Ask Question", type="primary")
     
     with col_clear:
-        if st.button("🗑️ Clear Chat", width='stretch'):
+        if st.button("🗑️ Clear Chat"):
             st.session_state.chat_history = []
             if st.session_state.chat_engine:
                 st.session_state.chat_engine.clear_history()
@@ -173,8 +479,7 @@ def render_chat_interface(groq_api_key: str):
                 "💾 Export Chat",
                 data=chat_export,
                 file_name=f"chat_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain",
-                width='stretch'
+                mime="text/plain"
             )
     
     # Process question
@@ -270,7 +575,7 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                     # Create chunks for vector store
                     chunks = st.session_state.doc_processor.create_document_chunks(df, chunk_size=10)
                     
-                    # Initialize vector store (uses OpenAI for embeddings if available)
+                    # Initialize vector store
                     vector_store = VectorStoreManager(
                         openai_key=openai_api_key,
                         groq_key=groq_api_key
@@ -332,11 +637,11 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                     'Null': df.isnull().sum().values,
                     'Unique': [df[col].nunique() for col in df.columns]
                 })
-                st.dataframe(col_info, width='stretch', hide_index=True)
+                st.dataframe(col_info, use_container_width=True, hide_index=True)
                 
                 # Sample data
                 st.markdown("#### 🔍 Sample Data (First 10 rows)")
-                st.dataframe(df.head(10), width='stretch', height=400)
+                st.dataframe(df.head(10), use_container_width=True, height=400)
             
             with tab3:
                 st.subheader("📦 Product Analysis")
@@ -370,12 +675,12 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                         {'Category': cat, 'Count': count, 'Percentage': f"{count/len(df)*100:.1f}%"}
                         for cat, count in list(categories.items())[:20]
                     ])
-                    st.dataframe(cat_df, width='stretch', hide_index=True)
+                    st.dataframe(cat_df, use_container_width=True, hide_index=True)
                 
                 # Top products
                 st.markdown("#### 🏆 Top Products by Price")
                 top_products = product_extractor.get_top_products(by='price', limit=10)
-                st.dataframe(top_products, width='stretch')
+                st.dataframe(top_products, use_container_width=True)
             
             with tab4:
                 st.subheader("📈 Statistical Analysis")
@@ -384,7 +689,7 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                 numeric_cols = df.select_dtypes(include=['number']).columns
                 if len(numeric_cols) > 0:
                     st.markdown("#### 🔢 Numeric Columns Statistics")
-                    st.dataframe(df[numeric_cols].describe(), width='stretch')
+                    st.dataframe(df[numeric_cols].describe(), use_container_width=True)
                 
                 # Categorical analysis
                 text_cols = df.select_dtypes(include=['object']).columns
@@ -406,7 +711,7 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                                     'Value': value_counts.index,
                                     'Count': value_counts.values
                                 }),
-                                width='stretch',
+                                use_container_width=True,
                                 hide_index=True,
                                 height=400
                             )
@@ -422,7 +727,7 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                     })
                     st.dataframe(
                         missing_df[missing_df['Missing Count'] > 0],
-                        width='stretch',
+                        use_container_width=True,
                         hide_index=True
                     )
                 else:
@@ -444,7 +749,7 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                     
                     search_results = df[mask]
                     st.markdown(f"**Found {len(search_results)} matching rows**")
-                    st.dataframe(search_results, width='stretch', height=400)
+                    st.dataframe(search_results, use_container_width=True, height=400)
                 
                 # Filtering
                 st.markdown("#### 🎛️ Filter Data")
@@ -467,7 +772,7 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                             (df[filter_col] <= range_vals[1])
                         ]
                     else:
-                        unique_vals = df[filter_col].unique()[:100]  # Limit to 100
+                        unique_vals = df[filter_col].unique()[:100]
                         selected_vals = st.multiselect(
                             f"Select values for {filter_col}:",
                             unique_vals,
@@ -480,7 +785,7 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
                             filtered_df = df
                     
                     st.markdown(f"**Filtered Results: {len(filtered_df):,} rows**")
-                    st.dataframe(filtered_df, width='stretch', height=400)
+                    st.dataframe(filtered_df, use_container_width=True, height=400)
                     
                     # Download filtered
                     csv_data = filtered_df.to_csv(index=False).encode('utf-8')
@@ -495,15 +800,22 @@ def render_rag_analyzer_tab(groq_api_key: str, openai_api_key: str = None):
             st.error(f"❌ Error: {str(e)}")
             st.exception(e)
 
+# ============================================================================
+# MAIN APPLICATION
+# ============================================================================
+
 def main():
     init_session_state()
     
-    st.title("🤖 AI Web Scraper Pro + RAG Data Analyzer")
-    st.markdown("**Professional web scraping + AI-powered data chat with Groq**")
-
+    st.title("🤖 AI Web Scraper Pro + Gemini Live Agent")
+    st.markdown("**Professional web scraping + AI-powered data chat with Groq + Multimodal Voice Agent**")
+    
+    # Load API keys from environment
     groq_api_key = os.getenv("GROQ_API_KEY", "")
     openai_api_key = os.getenv("OPENAI_API_KEY", "")
+    google_api_key = os.getenv("GOOGLE_API_KEY", "")
     
+    # Sidebar
     with st.sidebar:
         st.markdown("---")
         st.subheader("🛠️ Scraping Engine")
@@ -529,15 +841,37 @@ def main():
         timeout = st.slider("Timeout (sec)", 10, 120, 30, 5)
         delay = st.slider("Delay (sec)", 0.0, 5.0, 1.0, 0.5)
         max_items = st.number_input("Max Items", 10, 10000, 500, 50)
+        
+        # API Status
+        st.markdown("---")
+        st.subheader("🔑 API Status")
+        
+        if google_api_key:
+            st.success("✅ Google (Gemini)")
+        else:
+            st.warning("⚠️ Google (Gemini) - Not set")
+        
+        if groq_api_key:
+            st.success("✅ Groq")
+        else:
+            st.warning("⚠️ Groq - Not set")
+        
+        if openai_api_key:
+            st.success("✅ OpenAI")
+        else:
+            st.info("ℹ️ OpenAI - Optional")
     
     # Main navigation
     main_tab = st.radio(
         "Select Feature:",
-        ["📊 RAG Data Analyzer", "🚀 Web Scraper", "🔬 Power Analysis"],
+        ["🤖 Gemini Live Agent", "📊 RAG Data Analyzer", "🚀 Web Scraper", "🔬 Power Analysis"],
         horizontal=True
     )
     
-    if main_tab == "📊 RAG Data Analyzer":
+    if main_tab == "🤖 Gemini Live Agent":
+        render_gemini_agent_tab()
+    
+    elif main_tab == "📊 RAG Data Analyzer":
         render_rag_analyzer_tab(groq_api_key, openai_api_key)
     
     elif main_tab == "🚀 Web Scraper":
@@ -567,8 +901,36 @@ def main():
                 st.metric("URLs", len(urls))
                 st.metric("Fields", len(fields))
         
-        if st.button("🚀 Start Scraping", type="primary", width='stretch'):
+        if st.button("🚀 Start Scraping", type="primary"):
             st.info("Scraping started... (Implementation continues here)")
+    
+    elif main_tab == "🔬 Power Analysis":
+        st.markdown("---")
+        st.header("🔬 Power Analysis Mode")
+        
+        analysis_url = st.text_input("URL to Analyze", placeholder="https://example.com/products")
+        
+        if st.button("🔍 Analyze Structure", type="primary"):
+            if not analysis_url or not validate_url(analysis_url):
+                st.error("Invalid URL")
+            else:
+                with st.spinner("Fetching page..."):
+                    html, engine_used, success = fetch_page_multi_engine(analysis_url, engine, timeout, delay)
+                
+                if not html or not success:
+                    st.error("Failed to fetch page")
+                else:
+                    st.success(f"✅ Page fetched using {engine_used}")
+                    
+                    # Analyze structure
+                    analysis = analyze_page_structure(html)
+                    
+                    st.subheader("📊 Structure Analysis")
+                    st.json(analysis)
+    
+    # Footer
+    st.markdown("---")
+    st.caption("Powered by Gemini 2.0 Flash + Groq Llama 3 • Deployed on Google Cloud Run • Built for #GeminiLiveAgentChallenge")
 
 if __name__ == "__main__":
     main()
