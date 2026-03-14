@@ -16,6 +16,8 @@ from datetime import datetime
 import time
 from io import BytesIO
 import json
+import pickle
+from pathlib import Path
 
 # Scraper imports
 from scraper import (
@@ -46,12 +48,72 @@ from rag_analyzer import (
 
 load_dotenv()
 
+# Session persistence directory
+SESSION_DIR = Path(".session_data")
+SESSION_DIR.mkdir(exist_ok=True)
+CHAT_HISTORY_FILE = SESSION_DIR / "chat_history.json"
+UPLOADED_DATA_FILE = SESSION_DIR / "uploaded_data.pkl"
+DATA_SUMMARY_FILE = SESSION_DIR / "data_summary.json"
+
 st.set_page_config(
     page_title="AI Web Scraper Pro",
     page_icon="🕷️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+def save_session():
+    """Save session data to files for persistence"""
+    try:
+        # Save chat history
+        if st.session_state.get('chat_history'):
+            with open(CHAT_HISTORY_FILE, 'w') as f:
+                json.dump(st.session_state.chat_history, f, indent=2)
+        
+        # Save data summary
+        if st.session_state.get('data_summary'):
+            with open(DATA_SUMMARY_FILE, 'w') as f:
+                json.dump({'summary': st.session_state.data_summary}, f)
+        
+        
+        # Save uploaded dataframe
+        if st.session_state.get('uploaded_df') is not None:
+            st.session_state.uploaded_df.to_pickle(UPLOADED_DATA_FILE)
+    except Exception as e:
+        print(f"Error saving session: {e}")
+
+def load_session():
+    """Load session data from files"""
+    try:
+        # Load chat history
+        if CHAT_HISTORY_FILE.exists():
+            with open(CHAT_HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        
+        return []
+    except Exception as e:
+        print(f"Error loading session: {e}")
+        return []
+
+def load_data_summary():
+    """Load data summary from file"""
+    try:
+        if DATA_SUMMARY_FILE.exists():
+            with open(DATA_SUMMARY_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('summary')
+        return None
+    except:
+        return None
+
+def load_uploaded_df():
+    """Load uploaded dataframe from file"""
+    try:
+        if UPLOADED_DATA_FILE.exists():
+            return pd.read_pickle(UPLOADED_DATA_FILE)
+        return None
+    except:
+        return None
 
 def init_session_state():
     # Scraping session states
@@ -64,9 +126,9 @@ def init_session_state():
     if 'structure_analysis' not in st.session_state:
         st.session_state.structure_analysis = None
     
-    # RAG Analyzer session state
+    # RAG Analyzer session state - with persistence
     if 'uploaded_df' not in st.session_state:
-        st.session_state.uploaded_df = None
+        st.session_state.uploaded_df = load_uploaded_df()
     if 'vector_store' not in st.session_state:
         st.session_state.vector_store = None
     if 'chat_engine' not in st.session_state:
@@ -74,11 +136,13 @@ def init_session_state():
     if 'doc_processor' not in st.session_state:
         st.session_state.doc_processor = DocumentProcessor()
     if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
+        st.session_state.chat_history = load_session()
     if 'data_summary' not in st.session_state:
-        st.session_state.data_summary = None
+        st.session_state.data_summary = load_data_summary()
     if 'current_model' not in st.session_state:
         st.session_state.current_model = "llama-3.3-70b-versatile"
+    if 'groq_api_key' not in st.session_state:
+        st.session_state.groq_api_key = None
 
 
 # ============================================================================
@@ -91,17 +155,51 @@ def render_chat_interface(groq_api_key: str):
     st.subheader("💬 Chat with Your Data")
     st.markdown("Powered by Groq AI - Fast & Free")
     
+    # Debug output
+    print(f"render_chat_interface called with groq_api_key: {bool(groq_api_key)}")
+    if groq_api_key:
+        print(f"API Key (masked): {groq_api_key[:10]}...{groq_api_key[-4:]}")
+    
     if not groq_api_key:
-        st.warning("⚠️ Groq API Key not configured")
+        st.error("❌ Groq API Key not configured!")
         st.info("""
-        **How to get Groq API Key (FREE):**
+        **How to setup Groq API Key (FREE):**
+        
         1. Visit https://console.groq.com
         2. Sign up for free account
         3. Go to API Keys section
-        4. Create new API key
-        5. Add it to your .env file as `GROQ_API_KEY`
+        4. Click "Create API Key"
+        5. Copy the key
+        6. Create `.env` file in project root:
+           ```
+           GROQ_API_KEY=your_key_here
+           ```
+        7. Restart the app: `streamlit run app.py`
         """)
         return
+    
+    # Re-initialize chat engine if needed (after refresh or tab switch)
+    if st.session_state.chat_engine is None and st.session_state.vector_store is not None:
+        print("Creating new ChatEngine with vector_store...")
+        st.session_state.chat_engine = ChatEngine(
+            groq_api_key,
+            st.session_state.vector_store,
+            model=st.session_state.current_model
+        )
+    elif st.session_state.chat_engine is None:
+        # No vector store yet, create a basic chat engine
+        print("Creating new ChatEngine without vector_store...")
+        st.session_state.chat_engine = ChatEngine(
+            groq_api_key,
+            vector_store=None,
+            model=st.session_state.current_model
+        )
+    
+    # Verify chat engine is working
+    if st.session_state.chat_engine and st.session_state.chat_engine.client:
+        print("✅ ChatEngine client is initialized")
+    else:
+        print(f"❌ ChatEngine client NOT initialized. Error: {st.session_state.chat_engine._init_error if st.session_state.chat_engine else 'No engine'}")
     
     # Model selection
     col_model, col_temp = st.columns([2, 1])
@@ -166,11 +264,29 @@ def render_chat_interface(groq_api_key: str):
         ask_button = st.button("Ask Question", type="primary")
     
     with col_clear:
-        if st.button("Clear Chat"):
-            st.session_state.chat_history = []
-            if st.session_state.chat_engine:
-                st.session_state.chat_engine.clear_history()
-            st.rerun()
+        col_clear_btn, col_clear_all = st.columns(2)
+        
+        with col_clear_btn:
+            if st.button("Clear Chat"):
+                st.session_state.chat_history = []
+                if st.session_state.chat_engine:
+                    st.session_state.chat_engine.clear_history()
+                # Clear saved session
+                if CHAT_HISTORY_FILE.exists():
+                    CHAT_HISTORY_FILE.unlink()
+                st.rerun()
+        
+        with col_clear_all:
+            if st.button("Clear All Data"):
+                st.session_state.chat_history = []
+                st.session_state.uploaded_df = None
+                st.session_state.data_summary = None
+                if st.session_state.chat_engine:
+                    st.session_state.chat_engine.clear_history()
+                # Clear all saved files
+                for f in SESSION_DIR.glob("*"):
+                    f.unlink()
+                st.rerun()
     
     with col_export:
         if st.session_state.chat_history:
@@ -206,32 +322,47 @@ def render_chat_interface(groq_api_key: str):
                 'response_time': response_time,
                 'model': selected_model_name
             })
+            
+            # Save session to file for persistence
+            save_session()
     
     # Display chat history
     if st.session_state.chat_history:
         st.markdown("---")
-        st.markdown("### Conversation History")
+        st.markdown("### 💬 Conversation History")
         
         for i, chat in enumerate(reversed(st.session_state.chat_history)):
             with st.container():
+                # User message - blue gradient background
                 st.markdown(f"""
-                <div style='background-color: #e3f2fd; padding: 15px; border-radius: 10px; margin-bottom: 10px;'>
-                    <strong>You ({chat['timestamp']})</strong><br>
-                    {chat['question']}
+                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            padding: 18px; border-radius: 15px; margin-bottom: 12px; 
+                            color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+                    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;'>
+                        <strong style='font-size: 1.1em;'>👤 You</strong>
+                        <span style='background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px; font-size: 0.85em;'>
+                            {chat['timestamp']}
+                        </span>
+                    </div>
+                    <div style='font-size: 1.05em; line-height: 1.5;'>{chat['question']}</div>
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # AI response - dark gradient background
                 st.markdown(f"""
-                <div style='background-color: #f5f5f5; padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
-                    <strong>AI Assistant</strong> 
-                    <span style='color: #666; font-size: 0.8em;'>
-                        ({chat.get('model', 'Unknown')} • {chat.get('response_time', 0):.2f}s)
-                    </span><br><br>
-                    {chat['answer']}
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+                            padding: 18px; border-radius: 15px; margin-bottom: 25px; 
+                            color: #e8e8e8; box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+                            border: 1px solid rgba(255,255,255,0.1);'>
+                    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;'>
+                        <strong style='font-size: 1.1em; color: #00d4ff;'>🤖 AI Assistant</strong>
+                        <span style='color: #888; font-size: 0.85em;'>
+                            {chat.get('model', 'Unknown')} • {chat.get('response_time', 0):.2f}s
+                        </span>
+                    </div>
+                    <div style='font-size: 1.0em; line-height: 1.6; color: #d0d0d0;'>{chat['answer']}</div>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                st.markdown("---")
     else:
         st.info("Ask a question above to start chatting with your data!")
 
@@ -292,8 +423,10 @@ def render_rag_analyzer_tab(groq_api_key: str):
                             vector_store,
                             model=st.session_state.current_model
                         )
+                        st.session_state.groq_api_key = groq_api_key
                     
                     st.success("File processed and ready!")
+                    save_session()
             
             df = st.session_state.uploaded_df
             
@@ -510,10 +643,21 @@ def render_rag_analyzer_tab(groq_api_key: str):
 def main():
     init_session_state()
     
-    st.title("🕷️ AI Web Scraper Pro")
-    st.markdown("**Professional web scraping + AI-powered data analysis**")
+    # Force reload .env to ensure it's loaded in Streamlit
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
     
     # Load API key from environment
+    groq_api_key = os.getenv("GROQ_API_KEY", "")
+    
+    # Debug: Show if API key is loaded (masked)
+    if groq_api_key:
+        print(f"✅ Groq API Key loaded: {groq_api_key[:10]}...{groq_api_key[-4:]}")
+    else:
+        print("❌ Groq API Key NOT found in environment!")
+    
+    st.title("🕷️ AI Web Scraper Pro")
+    st.markdown("**Professional web scraping + AI-powered data analysis**")
     
     # Sidebar
     with st.sidebar:
@@ -541,15 +685,6 @@ def main():
         timeout = st.slider("Timeout (sec)", 10, 120, 30, 5)
         delay = st.slider("Delay (sec)", 0.0, 5.0, 1.0, 0.5)
         max_items = st.number_input("Max Items", 10, 10000, 500, 50)
-        
-        # API Status
-        st.markdown("---")
-        st.subheader("API Status")
-        
-        if groq_api_key:
-            st.success("Groq API: Connected")
-        else:
-            st.warning("Groq API: Not set")
         
         st.markdown("---")
         st.markdown("### About")

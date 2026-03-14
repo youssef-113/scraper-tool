@@ -11,6 +11,7 @@ class ChatEngine:
         self.model = model
         self.conversation_history: List[Dict[str, str]] = []
         self.client: Optional[OpenAI] = None
+        self._init_error: Optional[str] = None
 
         if groq_api_key:
             try:
@@ -18,13 +19,37 @@ class ChatEngine:
                     api_key=groq_api_key,
                     base_url="https://api.groq.com/openai/v1"
                 )
-            except Exception:
+                # Test the client with a simple call
+                self._test_connection()
+            except Exception as e:
                 self.client = None
+                self._init_error = str(e)
+                print(f"ChatEngine initialization error: {e}")
+    
+    def _test_connection(self):
+        """Test the Groq API connection"""
+        try:
+            # Simple test to verify connection works
+            response = self.client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": "Hi"}],
+                max_tokens=5
+            )
+            return True
+        except Exception as e:
+            raise Exception(f"API connection test failed: {e}")
 
     def query(self, question: str, data_summary: str, max_context_chunks: int = 5, temperature: float = 0.3) -> str:
         """Process a user question and return an answer using Groq."""
         if not self.client:
-            return "Error: Groq API key not configured. Please add your API key."
+            error_msg = f"Error: Groq API client not initialized. "
+            if self._init_error:
+                error_msg += f"Init error: {self._init_error}"
+            elif not self.groq_api_key:
+                error_msg += "No API key provided."
+            else:
+                error_msg += "Unknown initialization error."
+            return error_msg
 
         # Get relevant context from vector store
         context = ""

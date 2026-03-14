@@ -190,3 +190,6 @@ scraping_results/
 data/
 output/
 downloads/
+
+# Session persistence data
+.session_data/
